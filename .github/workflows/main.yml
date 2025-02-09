@@ -4,6 +4,11 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version number (format vX.Y.Z)'     
+        required: true
 
 jobs:
   build:
@@ -26,7 +31,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
-        python-version: '3.13'
+        python-version: '3.10'
 
     - name: Install dependencies
       run: |
@@ -36,13 +41,13 @@ jobs:
 
     - name: Build executable
       run: |
-        pyinstaller --noconfirm --onefile --console --icon "icon.ico" "main.py"
+        pyinstaller --noconfirm --onefile --console --name "flasher" --icon "icon.ico" "main.py"
 
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
         name: ${{ matrix.artifact-name }}
-        path: ${{ matrix.dist-path }}
+        path: ${{ matrix.dist-path }}/*
 
   release:
     needs: build
@@ -55,11 +60,29 @@ jobs:
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
+        if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}
         with:
           tag_name: ${{ github.ref }}
           name: Release ${{ github.ref_name }}
           body: |
-            Built executables for Windows and Linux
+            Auto-generated release from CI build
+            - Windows: flasher.exe
+            - Linux: flasher
           files: |
-            artifacts/windows-exe/v1.exe
-            artifacts/linux-bin/v1
+            artifacts/windows-exe/flasher.exe
+            artifacts/linux-bin/flasher
+
+      - name: Create Manual Build
+        uses: softprops/action-gh-release@v1
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        with:
+          tag_name: manual-${{ github.run_id }}
+          name: Manual Build (${{ inputs.version }})
+          body: |
+            Unofficial build triggered manually
+            **Version**: ${{ inputs.version }}
+          draft: true
+          prerelease: true
+          files: |
+            artifacts/windows-exe/flasher.exe
+            artifacts/linux-bin/flasher
