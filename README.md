@@ -20,10 +20,10 @@ pip install -r requirements.txt
 
 ### Requirements.txt
 ```txt
-requests==2.31.0
-colorama==0.4.6
-packaging==23.2
-pyinstaller==6.0.0  # Only needed for EXE conversion
+requests
+colorama
+packaging
+pyinstaller# Only needed for EXE conversion
 ```
 
 ### Basic Usage
@@ -31,6 +31,7 @@ pyinstaller==6.0.0  # Only needed for EXE conversion
    - boot.img
    - vendor_boot.img
    - dtbo.img
+   - etc
 2. Run script:
 ```bash
 python flash.py
