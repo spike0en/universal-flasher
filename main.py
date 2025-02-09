@@ -406,6 +406,8 @@ class Flash:
         
         for part in self.vbmeta_partitions:
             img_file = f"{part}.img"
+            if part=="preloader_raw":
+                self.run_command([self.fastboot_path, "flash"] + ["preloader", img_file])
             if os.path.exists(img_file):
                 self.run_command([self.fastboot_path, "flash"] + avb_flags + [part, img_file])
 
