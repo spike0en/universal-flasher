@@ -265,6 +265,7 @@ class Flash:
 
     def flash_procedure(self):
         try:
+            self.run_command([self.fastboot_path, "reboot bootloader"])
             self.ask_slot_selection()
             self.run_command([self.fastboot_path, "--set-active=a"])
             
@@ -317,8 +318,7 @@ class Flash:
         if not self.confirm_flash(logical_files, "logical"):
             sys.exit(1)
         
-        if not os.path.exists("super.img"):
-            self.resize_partitions()
+        self.resize_partitions()
         self.flash_partitions(logical_files)
 
     def handle_firmware(self):
