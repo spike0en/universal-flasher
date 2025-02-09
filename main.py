@@ -10,9 +10,13 @@ import re
 import shutil
 import ctypes
 import colorama
+import json
+import time
+import threading
 from datetime import datetime
 from packaging import version
-import time
+from typing import Optional, List, Dict
+
 # Initialize colorama for Windows console colors
 colorama.init()
 
@@ -26,27 +30,93 @@ class Flash:
         self.work_dir = os.getcwd()
         self.min_version = version.parse("34.0.0")
         self.log_file = f"flash_log_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
-        self.slot_specific_partitions = ["boot", "vendor_boot", "dtbo", "recovery"]
         self.install_path = r"C:\adb" if sys.platform == "win32" else None
         self.slot = "a"
-
+        self.spinner_running = False
+        self.current_device = None
         # Color setup using colorama
         self.color_red = colorama.Fore.RED
         self.color_green = colorama.Fore.GREEN
         self.color_yellow = colorama.Fore.YELLOW
         self.color_reset = colorama.Style.RESET_ALL
 
-        # Partition configurations
-        self.boot_partitions = ["boot", "vendor_boot", "dtbo", "recovery"]
-        self.firmware_partitions = ["abl", "aop", "aop_config", "bluetooth", "cpucp",
-                                  "devcfg", "dsp", "featenabler", "hyp", "imagefv",
-                                  "keymaster", "modem", "multiimgoem", "multiimgqti",
-                                  "qupfw", "qweslicstore", "shrm", "tz", "uefi",
-                                  "uefisecapp", "xbl", "xbl_config", "xbl_ramdump"]
-        self.logical_partitions = ["system", "system_ext", "product", "vendor",
-                                 "vendor_dlkm", "odm"]
-        self.vbmeta_partitions = ["vbmeta_system", "vbmeta_vendor"]
+        # Load device configurations
+        self.devices = self.load_device_config()
+        if not self.devices:
+            print(f"{self.color_red}No supported devices found. Exiting.{self.color_reset}")
+            sys.exit(1)
+        self.current_device = None
+        self.boot_partitions = []
+        self.vbmeta_partitions = []
+        self.slot_specific_partitions = []
+        self.logical_partitions = []
+        self.firmware_partitions = []
         self.disable_avb = False
+    def set_current_device(self, device):
+        self.current_device = device
+        self.boot_partitions = device['partitions'].get('boot', [])
+        self.firmware_partitions = device['partitions'].get('firmware', [])
+        self.logical_partitions = device['partitions'].get('logical', [])
+        self.vbmeta_partitions = device['partitions'].get('vbmeta', [])
+        self.slot_specific_partitions = device.get('slot_specific', [])
+        
+        # New board verification
+        self.verify_board_compatibility()
+
+    def verify_board_compatibility(self):
+        if "board" not in self.current_device:
+            return
+
+        try:
+            result = self.run_command([self.fastboot_path, "getvar", "product"])
+            product_line = [line for line in result.stdout.splitlines() if line.startswith("product:")][0]
+            current_board = product_line.split(":")[1].strip()
+        except Exception as e:
+            print(f"{self.color_red}Failed to verify device board: {str(e)}{self.color_reset}")
+            return
+
+        expected_board = self.current_device["board"]
+        if current_board.lower() != expected_board.lower():
+            print(f"\n{self.color_red}WARNING: BOARD MISMATCH DETECTED!{self.color_reset}")
+            print(f"Expected board: {expected_board}")
+            print(f"Current board: {current_board}")
+            if not self.prompt_yes_no("Continue flashing despite board mismatch?", default_yes=False):
+                print(f"{self.color_red}Aborting flash procedure{self.color_reset}")
+                sys.exit(1)
+
+    def load_device_config(self) -> List[Dict]:
+        try:
+            url = "https://raw.githubusercontent.com/PHATWalrus/universal-flasher/refs/heads/main/devices.json"
+            response = requests.get(url)
+            response.raise_for_status()
+            return json.loads(response.text)["devices"]
+        except Exception as e:
+            print(f"{self.color_red}Failed to load device config: {str(e)}{self.color_reset}")
+            print(f"{self.color_yellow}Please check your internet connection or the repository URL{self.color_reset}")
+            sys.exit(1)
+
+    def select_device(self):
+        if not self.devices:
+            print(f"{self.color_red}No supported devices found. Exiting.{self.color_reset}")
+            sys.exit(1)
+        
+        print(f"\n{self.color_green}## SUPPORTED DEVICES ##{self.color_reset}")
+        for i, device in enumerate(self.devices, 1):
+            print(f"{self.color_yellow}{i}. {device['model']}{self.color_reset}")
+        
+        while True:
+            try:
+                choice = int(input(f"\n{self.color_green}Select a device (1-{len(self.devices)}): {self.color_reset}"))
+                if 1 <= choice <= len(self.devices):
+                    self.current_device = self.devices[choice - 1]
+                    print(f"{self.color_green}Selected device: {self.current_device['model']}{self.color_reset}")
+                    self.set_current_device(self.current_device)
+                    break
+                else:
+                    print(f"{self.color_red}Invalid choice. Please try again.{self.color_reset}")
+            except ValueError:
+                print(f"{self.color_red}Invalid input. Please enter a number.{self.color_reset}")
+
 
     def get_platform_tools_url(self):
         base_url = "https://dl.google.com/android/repository/platform-tools-latest-"
@@ -62,28 +132,51 @@ class Flash:
 
     def setup_environment(self):
         print(f"\n{self.color_green}## SETTING UP ENVIRONMENT ##{self.color_reset}")
-        if self.system == "windows" and self.check_system_tools():
+        if self.system == "windows":
             self.handle_windows_installation()
         self.check_system_tools()
         if not self.fastboot_path:
             self.setup_bundled_tools()
         self.validate_tools()
 
+    def start_spinner(self):
+        self.spinner_running = True
+        spinner_chars = ["⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"]
+        def spin():
+            i = 0
+            while self.spinner_running:
+                sys.stdout.write(f"\r{self.color_yellow}{spinner_chars[i % len(spinner_chars)]} Working...{self.color_reset}")
+                sys.stdout.flush()
+                time.sleep(0.1)
+                i += 1
+            sys.stdout.write("\r" + " " * 50 + "\r")
+        threading.Thread(target=spin, daemon=True).start()
+
+    def stop_spinner(self):
+        self.spinner_running = False
+        time.sleep(0.2)
+
     def handle_windows_installation(self):
         try:
-            if not self.is_admin():
+            if not self.is_admin() and not self.check_system_tools():
                 print(f"{self.color_yellow}Admin rights required for system modifications{self.color_reset}")
                 if self.prompt_yes_no("Restart with admin privileges?", default_yes=True):
                     self.run_as_admin()
-                    exit(0)
+                    exit(1)
             
             tools_path = os.path.join(self.install_path, "platform-tools")
             if not os.path.exists(tools_path):
                 print(f"{self.color_yellow}Installing platform tools to {self.install_path}{self.color_reset}")
                 self.setup_bundled_tools()
-            
-            self.add_to_system_path(tools_path)
-            print(f"{self.color_green}Added to PATH: {tools_path}{self.color_reset}")
+            if self.is_admin() and self.check_system_tools():
+                self.add_to_system_path(tools_path)
+                print(f"{self.color_green}Added to PATH: {tools_path}{self.color_reset}")
+            elif not self.is_admin() and not self.check_system_tools():
+                print(f"{self.color_yellow}Admin rights required to update system PATH{self.color_reset}")
+                print(f"{self.color_yellow}Please run the script with admin privileges{self.color_reset}")
+                sys.exit(1)
+            else:
+                print(f"{self.color_yellow}Skipping PATH update{self.color_reset}")
 
         except Exception as e:
             print(f"{self.color_red}Installation failed: {str(e)}{self.color_reset}")
@@ -169,7 +262,7 @@ class Flash:
             sys.exit(1)
     def check_system_tools(self):
         """Check for existing system tools and validate versions"""
-        print(f"{self.color_green}Checking system tools...{self.color_reset}")
+        #print(f"{self.color_green}Checking system tools...{self.color_reset}")
         
         # Check for fastboot
         self.fastboot_path = self.check_tool_version("fastboot")
@@ -191,12 +284,19 @@ class Flash:
             return None
         
         try:
-            result = subprocess.run([tool, "--version"], 
-                                  capture_output=True, 
-                                  text=True)
-            version_match = re.search(r"(\d+\.\d+\.\d+)", result.stdout)
+            if tool=="fastboot":
+                result = subprocess.run([tool, "--version"], 
+                                    capture_output=True, 
+                                    text=True)
+                version_match = re.search(r"(\d+\.\d+\.\d+)", result.stdout)
+            elif tool=="adb":
+                result = subprocess.run([tool, "version"], 
+                                    capture_output=True, 
+                                    text=True)
+                version_match = re.search(r"(\d+\.\d+\.\d+)-", result.stdout)
+
             if version_match and version.parse(version_match.group(1)) >= self.min_version:
-                print(f"{self.color_green}Using system {tool} v{version_match.group(1)}{self.color_reset}")
+                #print(f"{self.color_green}Using system {tool} v{version_match.group(1)}{self.color_reset}")
                 return path
         except Exception as e:
             print(f"{self.color_yellow}Version check failed for {tool}: {str(e)}{self.color_reset}")
@@ -258,7 +358,10 @@ class Flash:
                 if self.system == "linux":
                     print("3. Verify udev rules")
                 sys.exit(1)
+            
             print(f"{self.color_green}Connected device: {devices[0]}{self.color_reset}")
+            self.select_device()
+            
         except Exception as e:
             print(f"{self.color_red}Device check failed: {str(e)}{self.color_reset}")
             sys.exit(1)
@@ -437,28 +540,46 @@ class Flash:
                 return False
             print(f"{self.color_red}Invalid input! Please enter y/n{self.color_reset}")
 
+    def display_main_menu(self):
+        ascii_art = """
+        ███████╗██╗      █████╗ ███████╗██╗  ██╗███████╗██████╗ 
+        ██╔════╝██║     ██╔══██╗██╔════╝██║  ██║██╔════╝██╔══██╗
+        █████╗  ██║     ███████║███████╗███████║█████╗  ██████╔╝
+        ██╔══╝  ██║     ██╔══██║╚════██║██╔══██║██╔══╝  ██╔══██╗
+        ██║     ███████╗██║  ██║███████║██║  ██║███████╗██║  ██║
+        ╚═╝     ╚══════╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝
+        """
+        print(f"{self.color_green}{ascii_art}{self.color_reset}")
+        print(f"{self.color_yellow}Welcome to the Android ROM Flasher{self.color_reset}")
+        print(f"\n{self.color_green}1. Flash ROM{self.color_reset}")
+        print(f"{self.color_green}2. Exit{self.color_reset}")
+
+        while True:
+            choice = input(f"\n{self.color_yellow}Enter your choice (1-2): {self.color_reset}")
+            if choice == '1':
+                self.check_prerequisites()
+                self.device_checks()
+                self.flash_procedure()
+                break
+            elif choice == '2':
+                print(f"{self.color_yellow}Exiting...{self.color_reset}")
+                sys.exit(0)
+            else:
+                print(f"{self.color_red}Invalid choice. Please try again.{self.color_reset}")
 def main():
-    print(f"""{colorama.Fore.CYAN}
-    #############################
-    # Nothing Phone 2 ROM Flasher #
-    #############################
-    {colorama.Style.RESET_ALL}""")
-    
     try:
         flasher = Flash()
         flasher.setup_environment()
-        flasher.check_prerequisites()
-        flasher.device_checks()
-        flasher.flash_procedure()
+        flasher.display_main_menu()
     except SystemExit as e:
         print(f"\n{colorama.Fore.YELLOW}Process exited with code {e.code}{colorama.Style.RESET_ALL}")
-        input("Press Enter to close the window...")
     except KeyboardInterrupt:
         print(f"\n{colorama.Fore.RED}Operation cancelled by user{colorama.Style.RESET_ALL}")
-        input("Press Enter to close the window...")
     except Exception as e:
         print(f"\n{colorama.Fore.RED}Unexpected error: {str(e)}{colorama.Style.RESET_ALL}")
+    finally:
         input("Press Enter to close the window...")
+
 
 if __name__ == "__main__":
     if "--nopause" not in sys.argv:
