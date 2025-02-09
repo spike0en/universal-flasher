@@ -265,7 +265,7 @@ class Flash:
 
     def flash_procedure(self):
         try:
-            self.run_command([self.fastboot_path, "reboot bootloader"])
+            #self.run_command([self.fastboot_path, "reboot bootloader"])
             self.ask_slot_selection()
             self.run_command([self.fastboot_path, "--set-active=a"])
             
