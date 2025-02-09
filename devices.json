@@ -32,7 +32,7 @@
           "boot": ["boot", "dtbo", "init_boot", "vendor_boot"],
           "firmware": ["apusys", "audio_dsp", "ccu", "connsys_bt", "connsys_gnss", "connsys_wifi", "dpm", "gpueb", "gz", "lk", "logo", "mcf_ota", "mcupm", "md1img", "mvpu_algo", "pi_img", "scp", "spmfw", "sspm", "tee", "vcp"],
           "logical": ["odm_dlkm", "odm", "vendor_dlkm", "product", "vendor", "system_dlkm", "system_ext", "system"],
-          "vbmeta": ["vbmeta", "vbmeta_system", "vbmeta_vendor"]
+          "vbmeta": ["vbmeta","preloader_raw", "vbmeta_system", "vbmeta_vendor"]
         },
         "slot_specific": ["boot", "dtbo", "init_boot", "vendor_boot"]
       },
@@ -44,7 +44,7 @@
           "boot": ["boot", "dtbo", "init_boot", "vendor_boot"],
           "firmware": ["apusys", "ccu", "connsys_bt", "connsys_gnss", "connsys_wifi", "dpm", "gpueb", "gz", "lk", "logo", "mcupm", "modem", "pi_img", "scp", "spmfw", "sspm", "tee", "vcp"],
           "logical": ["odm_dlkm", "odm", "vendor_dlkm", "product", "vendor", "system_dlkm", "system_ext", "system"],
-          "vbmeta": ["vbmeta", "vbmeta_system", "vbmeta_vendor"]
+          "vbmeta": ["vbmeta","preloader_raw", "vbmeta_system", "vbmeta_vendor"]
         },
         "slot_specific": ["boot", "dtbo", "init_boot", "vendor_boot"]
       }
