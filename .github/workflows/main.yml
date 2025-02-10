@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version number (format vX.Y.Z)'     
+        description: 'Version number (format X.Y.Z)'     
         required: true
 
 jobs:
@@ -41,48 +41,62 @@ jobs:
 
     - name: Build executable
       run: |
-        pyinstaller --noconfirm --onefile --console --name "flasher" --icon "icon.ico" "main.py"
+        if [[ "$RUNNER_OS" == "Windows" ]]; then
+          pyinstaller --noconfirm --onefile --console --name "flasher" --icon "icon.ico" "flash.py"
+        else
+          pyinstaller --noconfirm --onefile --console --name "flasher" "flash.py"
+        fi
+      shell: bash
 
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
         name: ${{ matrix.artifact-name }}
-        path: ${{ matrix.dist-path }}/*
+        path: ${{ matrix.dist-path }}/flasher*
 
   release:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
+    - name: Download artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
 
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
-        if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}
-        with:
-          tag_name: ${{ github.ref }}
-          name: Release ${{ github.ref_name }}
-          body: |
-            Auto-generated release from CI build
-            - Windows: flasher.exe
-            - Linux: flasher
-          files: |
-            artifacts/windows-exe/flasher.exe
-            artifacts/linux-bin/flasher
+    - name: Ensure version format (manual builds)
+      if: ${{ github.event_name == 'workflow_dispatch' }}
+      run: |
+        if [[ "${{ inputs.version }}" != v* ]]; then
+          echo "VERSION=v${{ inputs.version }}" >> $GITHUB_ENV
+        else
+          echo "VERSION=${{ inputs.version }}" >> $GITHUB_ENV
+        fi
 
-      - name: Create Manual Build
-        uses: softprops/action-gh-release@v1
-        if: ${{ github.event_name == 'workflow_dispatch' }}
-        with:
-          tag_name: manual-${{ github.run_id }}
-          name: Manual Build (${{ inputs.version }})
-          body: |
-            Unofficial build triggered manually
-            **Version**: ${{ inputs.version }}
-          draft: true
-          prerelease: true
-          files: |
-            artifacts/windows-exe/flasher.exe
-            artifacts/linux-bin/flasher
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}
+      with:
+        tag_name: ${{ github.ref }}
+        name: Release ${{ github.ref_name }}
+        body: |
+          Auto-generated release from CI build
+          - Windows: flasher.exe
+          - Linux: flasher
+        files: |
+          artifacts/windows-exe/flasher.exe
+          artifacts/linux-bin/flasher
+
+    - name: Create Manual Build
+      uses: softprops/action-gh-release@v1
+      if: ${{ github.event_name == 'workflow_dispatch' }}
+      with:
+        tag_name: manual-${{ env.VERSION }}
+        name: Manual Build (${{ env.VERSION }})
+        body: |
+          Unofficial build triggered manually
+          **Version**: ${{ env.VERSION }}
+        draft: true
+        prerelease: true
+        files: |
+          artifacts/windows-exe/flasher.exe
+          artifacts/linux-bin/flasher
