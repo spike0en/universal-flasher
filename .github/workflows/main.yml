@@ -44,7 +44,7 @@ jobs:
         if [[ "$RUNNER_OS" == "Windows" ]]; then
           pyinstaller --noconfirm --onefile --console --name "flasher" --icon "icon.ico" "flash.py"
         else
-          pyinstaller --noconfirm --onefile --console --name "flasher" "flash.py"
+          pyinstaller --noconfirm --onefile --console --name "flasher" --icon "icon.png" "flash.py"
         fi
       shell: bash
 
