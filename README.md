@@ -4,7 +4,10 @@
 ![License](https://img.shields.io/badge/license-MIT-green)
 [![Build and Release](https://github.com/PHATWalrus/universal-flasher/actions/workflows/main.yml/badge.svg?branch=main)](https://github.com/PHATWalrus/universal-flasher/actions/workflows/main.yml)
 
-Next-gen Android flashing tool with multi-device support and enhanced safety features
+A next-gen Android flashing tool with multi-device support and enhanced safety features for devices based on Qualcomm and MediaTek platforms.
+
+## Disclaimer ⚠️
+Use at your own risk. Always maintain backup of critical data before flashing. The authors are not responsible for any bricked devices.
 
 ## Features ✨
 
@@ -119,6 +122,26 @@ jobs:
 fastboot getvar product
 ```
 - **copy the value after product:**
+
+## Flashing Instructions 🗒️
+
+- Download the correct flasher executable for your OS (Windows/Linux) from the releases page before proceeding.
+- Place the script in the same directory where the all the required stock partition `.img` files are located.
+   - For **Nothing** and **CMF** phones, you can obtain these files from the [nothing_archive](https://github.com/spike0en/nothing_archive).
+   - Alternatively, you can extract the `.img` files from a `payload.bin` file if it's available for your specific device model.
+- Ensure your device is in **bootloader mode** before proceeding.
+- **For Windows:**
+   - Double-click the `flasher.exe` file to start the process.
+- **For Linux/macOS:**
+   - Open a terminal and navigate to the directory where your `.img` files are located.
+   - Run the following commands to set execution permissions and flash the files:     
+  ```bash
+  # Make the binary executable
+  chmod +x flasher
+  # Execute the flasher
+  ./flasher
+  ```
+  
 ## Troubleshooting 🔧
 
 **Common Issues**:
@@ -126,7 +149,8 @@ fastboot getvar product
 - **Admin Rights**: On Windows, run as Administrator for system PATH updates
 - **Device Not Detected**:
   - Verify fastboot mode
-  - Check USB drivers
+  - Check USB drivers.
+  - For windows: Ensure that the `Android Bootloader Interface` appears in Device Manager when the device is connected in bootloader mode.
   - For Linux: Configure udev rules
 - **Board Mismatch**: Double-check device configuration in `devices.json`
 
@@ -135,10 +159,10 @@ fastboot getvar product
 # Check generated log files
 tail -f flash_log_20250209_1600.txt
 ```
-
-## Disclaimer ⚠️
-Use at your own risk. Always maintain backup of critical data before flashing. The authors are not responsible for any bricked devices.
+ 
+## Acknowledgements 🤝 
+Thanks to all those involved with [Pong_fastboot_flasher](https://github.com/HELLBOY017/Pong_fastboot_flasher/graphs/contributors) and its actively maintained forks for their work! Their contributions laid the foundation for the partition flashing order and the commands used in the script for Qualcomm and MediaTek models, greatly influencing many of the features implemented in this tool.
 
 ---
-
+  
 📝 **License**: MIT | 💻 **Requirements**: Python 3.10+ | 📦 **Dependencies**: See requirements.txt
