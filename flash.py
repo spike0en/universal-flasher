@@ -16,7 +16,7 @@ import threading
 from datetime import datetime
 from packaging import version
 from typing import Optional, List, Dict
-
+from alive_progress import alive_bar
 # Initialize colorama for Windows console colors
 colorama.init()
 
@@ -140,21 +140,26 @@ class Flash:
         self.validate_tools()
 
     def start_spinner(self):
-        self.spinner_running = True
-        spinner_chars = ["⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"]
-        def spin():
-            i = 0
-            while self.spinner_running:
-                sys.stdout.write(f"\r{self.color_yellow}{spinner_chars[i % len(spinner_chars)]} Working...{self.color_reset}")
-                sys.stdout.flush()
-                time.sleep(0.1)
-                i += 1
-            sys.stdout.write("\r" + " " * 50 + "\r")
-        threading.Thread(target=spin, daemon=True).start()
+        if not self.spinner_running:
+            self.spinner_running = True
+            spinner_chars = ["⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"]
+            def spin():
+                i = 0
+                while self.spinner_running:
+                    sys.stdout.write(f"\r{self.color_yellow}{spinner_chars[i % len(spinner_chars)]} Working...{self.color_reset}")
+                    sys.stdout.flush()
+                    time.sleep(0.1)
+                    i += 1
+                sys.stdout.write("\r" + " " * 50 + "\r")
+            self.spinner_thread = threading.Thread(target=spin, daemon=True)
+            self.spinner_thread.start()
 
     def stop_spinner(self):
-        self.spinner_running = False
-        time.sleep(0.2)
+        if self.spinner_running:
+            self.spinner_running = False
+            if self.spinner_thread.is_alive():
+                self.spinner_thread.join(timeout=0.3)
+            time.sleep(0.1)  # Allow final spinner update to clear
 
     def handle_windows_installation(self):
         try:
@@ -365,57 +370,126 @@ class Flash:
         except Exception as e:
             print(f"{self.color_red}Device check failed: {str(e)}{self.color_reset}")
             sys.exit(1)
+    
+    def handle_super_partitions(self):
+        print(f"\n{self.color_green}## HANDLING SUPER PARTITIONS ##{self.color_reset}")
+        exe_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
+        os.chdir(exe_dir)
+        
+        super_files = []
+        if os.path.exists('super_empty.img'):
+            super_files.append('super_empty')
+        if os.path.exists('super.img'):
+            super_files.append('super')
+        
+        # Prioritize super_empty first if both exist
+        super_files = sorted(super_files, key=lambda x: x == 'super')
+        
+        if not super_files:
+            print(f"{self.color_yellow}No super partitions found{self.color_reset}")
+            return False
+        
+        try:
+            self.start_spinner()
+            self.resize_partitions()
+            for part in super_files:
+                self.flash_partitions([part])
+            self.stop_spinner()
+            return True
+        except Exception as e:
+            self.stop_spinner()
+            print(f"{self.color_red}Error flashing super partitions: {str(e)}{self.color_reset}")
+            sys.exit(1)
 
     def flash_procedure(self):
+        if self.spinner_running:
+            self.spinner_running = False
+            if self.spinner_thread.is_alive():
+                self.spinner_thread.join(timeout=0.3)
+            time.sleep(0.1)
         try:
-            #self.run_command([self.fastboot_path, "reboot bootloader"])
             self.ask_slot_selection()
             self.run_command([self.fastboot_path, "--set-active=a"])
             
             if self.prompt_yes_no("Wipe user data? (Recommended for clean install)"):
                 if self.confirm_operation("WIPE ALL USER DATA", dangerous=True):
+                    self.start_spinner()
                     self.run_command([self.fastboot_path, "-w"])
+                    self.stop_spinner()
 
             self.handle_boot_partitions()
             self.handle_vbmeta()
             self.handle_fastbootd_reboot()
+            sup_stat=self.handle_super_partitions()
+            print (f"sup_stat={sup_stat}")
+            if not sup_stat:
+                self.handle_logical_partitions()
             self.handle_logical_partitions()
             self.handle_firmware()
 
             if self.prompt_yes_no("Reboot to system?"):
+                self.start_spinner()
                 self.run_command([self.fastboot_path, "reboot"])
+                self.stop_spinner()
 
             print(f"{self.color_green}\nFlashing completed successfully{self.color_reset}")
             self.generate_summary_report()
 
         except subprocess.CalledProcessError as e:
+            self.stop_spinner()
             print(f"{self.color_red}Flashing error: {str(e)}{self.color_reset}")
             sys.exit(1)
 
     def handle_boot_partitions(self):
+        if self.spinner_running:
+            self.spinner_running = False
+            if self.spinner_thread.is_alive():
+                self.spinner_thread.join(timeout=0.3)
+            time.sleep(0.1)
         boot_files = self.filter_existing(self.boot_partitions)
         if not self.confirm_flash(boot_files, "boot"):
             if self.prompt_yes_no("Abort entire flashing process?"):
                 sys.exit(1)
             return
+        self.start_spinner()
         self.flash_partitions(boot_files)
+        self.stop_spinner()
 
     def handle_vbmeta(self):
+        if self.spinner_running:
+            self.spinner_running = False
+            if self.spinner_thread.is_alive():
+                self.spinner_thread.join(timeout=0.3)
+            time.sleep(0.1)
         self.disable_avb = self.prompt_yes_no("Disable Android Verified Boot (AVB)?")
         avb_flags = ["--disable-verity", "--disable-verification"] if self.disable_avb else []
         
+        self.start_spinner()
         for part in self.vbmeta_partitions:
             img_file = f"{part}.img"
-            if part=="preloader_raw":
+            if part == "preloader_raw":
                 self.run_command([self.fastboot_path, "flash"] + ["preloader", img_file])
             if os.path.exists(img_file):
                 self.run_command([self.fastboot_path, "flash"] + avb_flags + [part, img_file])
+        self.stop_spinner()
 
     def handle_fastbootd_reboot(self):
+        if self.spinner_running:
+            self.spinner_running = False
+            if self.spinner_thread.is_alive():
+                self.spinner_thread.join(timeout=0.3)
+            time.sleep(0.1)
         print(f"\n{self.color_green}## REBOOTING TO FASTBOOTD ##{self.color_reset}")
+        self.start_spinner()
         self.run_command([self.fastboot_path, "reboot", "fastboot"])
+        self.stop_spinner()
 
     def handle_logical_partitions(self):
+        if self.spinner_running:
+            self.spinner_running = False
+            if self.spinner_thread.is_alive():
+                self.spinner_thread.join(timeout=0.3)
+            time.sleep(0.1)
         logical_files = self.filter_existing(self.logical_partitions)
         missing = self.get_missing_partitions(self.logical_partitions)
         
@@ -423,17 +497,26 @@ class Flash:
         if not self.confirm_flash(logical_files, "logical"):
             sys.exit(1)
         
+        self.start_spinner()
         self.resize_partitions()
         self.flash_partitions(logical_files)
+        self.stop_spinner()
 
     def handle_firmware(self):
+        if self.spinner_running:
+            self.spinner_running = False
+            if self.spinner_thread.is_alive():
+                self.spinner_thread.join(timeout=0.3)
+            time.sleep(0.1)
         firmware_files = self.filter_existing(self.firmware_partitions)
         missing = self.get_missing_partitions(self.firmware_partitions)
         
         self.display_missing_report(missing, "firmware")
         if not self.confirm_flash(firmware_files, "firmware"):
             sys.exit(1)
+        self.start_spinner()
         self.flash_partitions(firmware_files)
+        self.stop_spinner()
 
     def filter_existing(self, partitions):
         return [p for p in partitions if os.path.exists(f"{p}.img")]
