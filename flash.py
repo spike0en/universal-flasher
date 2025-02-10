@@ -16,7 +16,6 @@ import threading
 from datetime import datetime
 from packaging import version
 from typing import Optional, List, Dict
-from alive_progress import alive_bar
 # Initialize colorama for Windows console colors
 colorama.init()
 
