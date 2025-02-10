@@ -392,6 +392,7 @@ class Flash:
             self.start_spinner()
             self.resize_partitions()
             for part in super_files:
+                print(f"{self.color_green}Flashing {part}...{self.color_reset}")
                 self.flash_partitions([part])
             self.stop_spinner()
             return True
@@ -420,10 +421,9 @@ class Flash:
             self.handle_vbmeta()
             self.handle_fastbootd_reboot()
             sup_stat=self.handle_super_partitions()
-            print (f"sup_stat={sup_stat}")
-            if not sup_stat:
+            #print (f"sup_stat={sup_stat}")
+            if sup_stat==False:
                 self.handle_logical_partitions()
-            self.handle_logical_partitions()
             self.handle_firmware()
 
             if self.prompt_yes_no("Reboot to system?"):
