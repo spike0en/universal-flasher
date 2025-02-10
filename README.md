@@ -9,6 +9,10 @@ A next-gen Android flashing tool with multi-device support and enhanced safety f
 ## Disclaimer ⚠️
 Use at your own risk. Always maintain backup of critical data before flashing. The authors are not responsible for any bricked devices.
 
+## Contact/Support
+- [Script support group](https://t.me/phattySupport)
+- [XDA forums](https://xdaforums.com/t/universal-android-rom-flasher-next-gen-multi-device-toolkit.4717990/)
+
 ## Features ✨
 
 - **Multi-Device Support** via `devices.json` configuration
