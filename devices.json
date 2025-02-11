@@ -15,7 +15,7 @@
       {
         "model": "Nothing Phone 1",
         "codename": "Spacewar",
-        "board": "lahaina",
+        "board": "Spacewar",
         "partitions": {
           "boot": ["boot", "vendor_boot", "dtbo"],
           "firmware": ["abl", "aop", "bluetooth", "cpucp", "devcfg", "dsp", "dtbo", "featenabler", "hyp", "imagefv", "keymaster", "modem", "multiimgoem", "qupfw", "shrm", "tz", "uefisecapp", "xbl", "xbl_config"],
