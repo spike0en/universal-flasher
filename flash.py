@@ -124,7 +124,7 @@ class Flash:
         elif self.system == "linux":
             if "aarch64" in self.arch or "arm64" in self.arch:
                 return f"{base_url}linux-arm64.tar.gz"
-            return f"{base_url}linux.tar.gz"
+            return f"{base_url}linux.zip"
         elif self.system == "darwin":
             return f"{base_url}darwin.zip"
         raise Exception("Unsupported operating system")
@@ -204,7 +204,7 @@ class Flash:
         os.makedirs(extract_dir, exist_ok=True)
         download_path = os.path.join(extract_dir, 
                                    "platform-tools.zip" if self.system == "windows" 
-                                   else "platform-tools.tar.gz")
+                                   else "platform-tools.zip")
         
         try:
             with requests.get(self.platform_tools_url, stream=True) as r:
@@ -217,8 +217,8 @@ class Flash:
                 with zipfile.ZipFile(download_path) as zip_ref:
                     zip_ref.extractall(extract_dir)
             else:
-                with tarfile.open(download_path, "r:gz") as tar_ref:
-                    tar_ref.extractall(extract_dir)
+                with zipfile.ZipFile(download_path) as zip_ref:
+                    zip_ref.extractall(extract_dir)
             
             if self.system != "windows":
                 bin_path = os.path.join(extract_dir, "platform-tools", "fastboot")
