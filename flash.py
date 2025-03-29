@@ -414,7 +414,19 @@ class Flash:
             if self.prompt_yes_no("Wipe user data? (Recommended for clean install)"):
                 if self.confirm_operation("WIPE ALL USER DATA", dangerous=True):
                     self.start_spinner()
-                    self.run_command([self.fastboot_path, "-w"])
+                    print(f"{self.color_yellow}Erasing userdata...{self.color_reset}")
+                    try:
+                        self.run_command([self.fastboot_path, "erase", "userdata"])
+                    except subprocess.CalledProcessError as e:
+                        print(f"{self.color_red}Failed to erase userdata: {e}{self.color_reset}")
+                        self.write_to_log(f"Error erasing userdata: {e.stderr}")
+                    
+                    print(f"{self.color_yellow}Erasing metadata...{self.color_reset}")
+                    try:
+                        self.run_command([self.fastboot_path, "erase", "metadata"])
+                    except subprocess.CalledProcessError as e:
+                        print(f"{self.color_red}Failed to erase metadata: {e}{self.color_reset}")
+                        self.write_to_log(f"Error erasing metadata: {e.stderr}")
                     self.stop_spinner()
 
             self.handle_boot_partitions()
